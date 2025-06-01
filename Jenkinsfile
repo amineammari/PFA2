@@ -16,7 +16,7 @@ pipeline {
         stage('Image Build'){
             steps {
                 echo 'Building.....'
-                sh 'scp -r -i $(minikube ssh-key) ./* docker@$(minikube ip):~/'
+                sh 'scp -r -i $(/home/amin/.minikube/machines/minikube/id_rsa) ./* docker@$(192.168.49.2):~/'
                 sh "minikube ssh 'docker build -t webapp:${commit_id} ./'"
                 echo 'build complete'
             }
