@@ -1,68 +1,62 @@
 pipeline {
     agent any
-
     environment {
-        IMAGE_NAME = "webapp"
-        DOCKER_HUB_USERNAME = "ammariamine"
+        COMMIT_ID = "${GIT_COMMIT.take(7)}"
     }
-
     stages {
         stage('Preparation') {
             steps {
-                checkout scm
-                script {
-                    COMMIT_ID = sh(script: "git rev-parse --short HEAD", returnStdout: true).trim()
-                    echo "Commit ID: ${COMMIT_ID}"
+                git branch: 'main', url: 'https://github.com/Ramzifer/fleetman.git'
+                sh 'git clone https://github.com/Ramzifer/fleetman-position-tracker.git position-tracker'
+            }
+        }
+        stage('Build Position Tracker') {
+            steps {
+                dir('position-tracker') {
+                    sh 'mvn clean package -DskipTests'
                 }
             }
         }
-
-        stage('Build Angular Project') {
+        stage('SonarQube Analysis') {
             steps {
-                sh '''
-                    npm install
-                    npm run build --prod
-                '''
-            }
-        }
-
-        stage('Build Docker Image') {
-            steps {
-                script {
-                    sh "docker build -t ${DOCKER_HUB_USERNAME}/${IMAGE_NAME}:${COMMIT_ID} ."
+                dir('position-tracker') {
+                    sh 'sonar-scanner -Dsonar.projectKey=fleetman-position-tracker -Dsonar.host.url=http://localhost:9000 -Dsonar.login=admin -Dsonar.password=admin'
                 }
             }
         }
-
-        stage('Push Docker Image') {
+        stage('SonarQube Quality Gate') {
             steps {
-                withCredentials([usernamePassword(credentialsId: 'docker-hub-creds', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-                    script {
-                        sh """
-                            echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
-                            docker push $DOCKER_USER/${IMAGE_NAME}:${COMMIT_ID}
-                        """
-                    }
+                dir('position-tracker') {
+                    sh 'sleep 10'
+                    sh 'curl -u admin:admin http://localhost:9000/api/qualitygates/project_status?projectKey=fleetman-position-tracker > status.json'
+                    sh 'cat status.json'
+                    sh 'if grep -q \'"status":"ERROR"\' status.json; then exit 1; fi'
                 }
             }
         }
-
-        stage('Update Deployment YAML') {
+        stage('Image Build for Webapp') {
             steps {
-                script {
-                    sh "sed -i 's|richardchesterwood/k8s-fleetman-webapp-angular:release2|${DOCKER_HUB_USERNAME}/${IMAGE_NAME}:${COMMIT_ID}|' PFA2/deployments/webapp.yaml"
+                sh "minikube cp ${WORKSPACE} /tmp/webapp"
+                sh "minikube ssh 'sudo mkdir -p /tmp/webapp && sudo chmod -R 777 /tmp/webapp'"
+                sh "minikube cp ${WORKSPACE}/index.html /tmp/webapp/index.html"
+                sh "minikube cp ${WORKSPACE}/Dockerfile /tmp/webapp/Dockerfile"
+                sh "minikube ssh 'cd /tmp/webapp && sudo docker build -t fleetman-webapp:${COMMIT_ID} .'"
+            }
+        }
+        stage('Deploy Position Tracker') {
+            steps {
+                dir('position-tracker/k8s') {
+                    sh 'kubectl apply -f deployment.yml'
+                    sh 'kubectl apply -f service.yml'
                 }
             }
         }
-
-        stage('Deploy to Kubernetes') {
+        stage('Deploy Webapp') {
             steps {
-                sh 'kubectl apply -f k8s-manifests/storage/'
-                sh 'kubectl apply -f k8s-manifests/deployments/'
-                sh 'kubectl apply -f k8s-manifests/services/'
-                sh 'kubectl get pods'
+                sh "sed -i 's/fleetman-webapp:.*/fleetman-webapp:${COMMIT_ID}/' replicaset-webapp.yml"
+                sh 'kubectl apply -f replicaset-webapp.yml'
+                sh 'kubectl apply -f webapp-service.yml'
             }
         }
     }
 }
-
