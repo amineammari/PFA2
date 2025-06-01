@@ -37,10 +37,12 @@ pipeline {
         stage('Push Docker Image') {
             steps {
                 withCredentials([usernamePassword(credentialsId: 'docker-hub-creds', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-                    sh '''
-                        echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
-                        docker push $DOCKER_USER/webapp:$COMMIT_ID
-                    '''
+                    script {
+                        sh """
+                            echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+                            docker push $DOCKER_USER/${IMAGE_NAME}:${COMMIT_ID}
+                        """
+                    }
                 }
             }
         }
