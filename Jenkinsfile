@@ -1,35 +1,46 @@
-def commit_id
 pipeline {
-    agent any 
+    agent any
 
+    environment {
+        IMAGE_NAME = "webapp"
+    }
 
     stages {
         stage('Preparation') {
             steps {
                 checkout scm
-                sh"git rev-parse --short HEAD > .git/commit-id"
                 script {
-                    commit_id = readFile('.git/commit-id').trim()
+                    COMMIT_ID = sh(script: "git rev-parse --short HEAD", returnStdout: true).trim()
+                    echo "Commit ID: ${COMMIT_ID}"
                 }
             }
         }
-        stage('Image Build'){
+
+        stage('Build Docker Image') {
             steps {
-                echo 'Building.....'
-                sh 'scp -r -i $(/home/amin/.minikube/machines/minikube/id_rsa) ./* docker@$(192.168.49.2):~/'
-                sh "minikube ssh 'docker build -t webapp:${commit_id} ./'"
-                echo 'build complete'
+                script {
+                    sh 'eval $(minikube docker-env)'
+                    sh "docker build -t ${IMAGE_NAME}:${COMMIT_ID} ."
+                }
             }
         }
-        stage('Deploy'){
+
+        stage('Update Deployment YAML') {
             steps {
-                echo 'Deploying to Kubernetes'
-                sh "sed -i -r 's|richardchesterwood/k8s-fleetman-webapp-angular:release2|webapp:${commit_id}|' ./manifests.workloads.yaml"
-                sh 'kubectl get all'
-                sh 'kubectl apply -f ./manifests/ '
-                sh 'kubectl get all'
-                echo 'deployment complete'
+                script {
+                    sh "sed -i 's|richardchesterwood/k8s-fleetman-webapp-angular:release2|${IMAGE_NAME}:${COMMIT_ID}|' k8s-manifests/deployments/webapp.yaml"
+                }
+            }
+        }
+
+        stage('Deploy to Kubernetes') {
+            steps {
+                sh 'kubectl apply -f k8s-manifests/storage/'
+                sh 'kubectl apply -f k8s-manifests/deployments/'
+                sh 'kubectl apply -f k8s-manifests/services/'
+                sh 'kubectl get pods'
             }
         }
     }
 }
+
