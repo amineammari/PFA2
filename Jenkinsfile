@@ -50,7 +50,7 @@ pipeline {
         stage('Update Deployment YAML') {
             steps {
                 script {
-                    sh "sed -i 's|richardchesterwood/k8s-fleetman-webapp-angular:release2|${DOCKER_HUB_USERNAME}/${IMAGE_NAME}:${COMMIT_ID}|' k8s-manifests/deployments/webapp.yaml"
+                    sh "sed -i 's|richardchesterwood/k8s-fleetman-webapp-angular:release2|${DOCKER_HUB_USERNAME}/${IMAGE_NAME}:${COMMIT_ID}|' PFA2/deployments/webapp.yaml"
                 }
             }
         }
