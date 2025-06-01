@@ -3,11 +3,7 @@ pipeline {
 
     environment {
         IMAGE_NAME = "webapp"
-        DOCKER_TLS_VERIFY = "1"
-    	DOCKER_HOST = "tcp://192.168.49.2:2376"
-    	DOCKER_CERT_PATH = "/home/amin/.minikube/certs"
-    	MINIKUBE_ACTIVE_DOCKERD = "minikube"
-
+        DOCKER_HUB_USERNAME = "ammariamine"
     }
 
     stages {
@@ -24,8 +20,18 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 script {
-                    sh 'eval $(minikube docker-env)'
-                    sh "docker build -t ${IMAGE_NAME}:${COMMIT_ID} ."
+                    sh "docker build -t ${DOCKER_HUB_USERNAME}/${IMAGE_NAME}:${COMMIT_ID} ."
+                }
+            }
+        }
+
+        stage('Push Docker Image') {
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'docker-hub-creds', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                    sh '''
+                        echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+                        docker push $DOCKER_USER/webapp:$COMMIT_ID
+                    '''
                 }
             }
         }
@@ -33,7 +39,7 @@ pipeline {
         stage('Update Deployment YAML') {
             steps {
                 script {
-                    sh "sed -i 's|richardchesterwood/k8s-fleetman-webapp-angular:release2|${IMAGE_NAME}:${COMMIT_ID}|' k8s-manifests/deployments/webapp.yaml"
+                    sh "sed -i 's|richardchesterwood/k8s-fleetman-webapp-angular:release2|${DOCKER_HUB_USERNAME}/${IMAGE_NAME}:${COMMIT_ID}|' k8s-manifests/deployments/webapp.yaml"
                 }
             }
         }
