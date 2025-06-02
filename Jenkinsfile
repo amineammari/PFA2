@@ -25,6 +25,17 @@ pipeline {
                 '''
             }
         }
+        stage('SonarQube Analysis') {
+    	    steps {
+        	withSonarQubeEnv('SonarQube') {
+            	    sh 'sonar-scanner -Dsonar.projectKey=webapp \
+                              -Dsonar.sources=src \
+                              -Dsonar.host.url=http://localhost:9000 \
+                              -Dsonar.login=$SONAR_AUTH_TOKEN'
+        }
+    }
+}
+
 
         stage('Build Docker Image') {
             steps {
