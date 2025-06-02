@@ -15,7 +15,7 @@ spec:
       containers:
       - name: webapp
         image: richardchesterwood/k8s-fleetman-webapp-angular:release2
-         imagePullPolicy: Always
+        imagePullPolicy: Always
         ports:
         - containerPort: 80
         env:
