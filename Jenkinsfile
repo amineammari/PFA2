@@ -25,9 +25,6 @@ pipeline {
                 '''
             }
         }
-    }
-}
-
 
         stage('Build Docker Image') {
             steps {
@@ -63,7 +60,7 @@ pipeline {
                 sh 'kubectl apply -f storage/'
                 sh 'kubectl apply -f deployments/'
                 sh 'kubectl apply -f services/'
-                sh 'kubectl get pods -w '
+                sh 'kubectl get pods -w'
             }
         }
     }
